@@ -3,13 +3,13 @@
 one:
   name: MyString
   description: MyString
-  max_supply: 
-  currency_sympol: MyString
+  max_supply:
+  currency_symbol: MyString
   slug: MyString
 
 two:
   name: MyString
   description: MyString
-  max_supply: 
-  currency_sympol: MyString
+  max_supply:
+  currency_symbol: MyString
   slug: MyString
