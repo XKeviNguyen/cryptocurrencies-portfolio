@@ -1,4 +1,5 @@
 require 'test_helper'
+require 'minitest/mock'
 
 class CurrenciesControllerTest < ActionDispatch::IntegrationTest
   test "should get index" do
