@@ -1,3 +1,4 @@
+require "openssl"
 require "socket"
 require "timeout"
 
@@ -44,7 +45,7 @@ class CoinMarketCapClient
     price
   rescue JSON::ParserError
     raise Error, "CoinMarketCap returned malformed JSON"
-  rescue Timeout::Error, SocketError, SystemCallError => error
+  rescue Timeout::Error, SocketError, SystemCallError, EOFError, OpenSSL::SSL::SSLError => error
     raise Error, "CoinMarketCap request failed: #{error.class}"
   end
 
