@@ -51,6 +51,8 @@ class CoinMarketCapClient
   private
 
   def extract_usd_price(payload)
+    return unless payload.is_a?(Hash)
+
     data = payload["data"]
     return unless data.is_a?(Hash)
 
