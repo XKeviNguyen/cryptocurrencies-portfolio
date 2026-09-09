@@ -96,10 +96,7 @@ class CoinMarketCapClientTest < ActiveSupport::TestCase
   end
 
   test "price_for translates request timeouts without leaking credentials" do
-    http_client = Object.new
-    http_client.define_singleton_method(:get) do |_url, _options|
-      raise Timeout::Error, "upstream timed out"
-    end
+    http_client = failing_http(Timeout::Error.new("upstream timed out"))
     client = CoinMarketCapClient.new(api_key: "configured-key", http_client: http_client)
 
     error = assert_raises(CoinMarketCapClient::Error) do
@@ -111,11 +108,33 @@ class CoinMarketCapClientTest < ActiveSupport::TestCase
     refute_includes error.message, "configured-key"
   end
 
+  test "price_for normalizes connection termination and TLS failures" do
+    [EOFError.new("connection closed"), OpenSSL::SSL::SSLError.new("TLS failed")].each do |transport_error|
+      client = CoinMarketCapClient.new(
+        api_key: "configured-key",
+        http_client: failing_http(transport_error)
+      )
+
+      error = assert_raises(CoinMarketCapClient::Error) do
+        client.price_for(slug: "bitcoin")
+      end
+
+      assert_equal "CoinMarketCap request failed: #{transport_error.class}", error.message
+      refute_includes error.message, "configured-key"
+    end
+  end
+
   private
 
   def fake_http(response)
     Object.new.tap do |client|
       client.define_singleton_method(:get) { |_url, _options| response }
+    end
+  end
+
+  def failing_http(error)
+    Object.new.tap do |client|
+      client.define_singleton_method(:get) { |_url, _options| raise error }
     end
   end
 end
