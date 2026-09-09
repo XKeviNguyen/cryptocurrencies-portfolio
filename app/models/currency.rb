@@ -5,7 +5,7 @@ class Currency < ApplicationRecord
 
   def current_price
     headers = {
-      "X-CMC_PRO_API_KEY" => "8eb899fe-6513-4727-8a80-a595d693a45e"
+      "X-CMC_PRO_API_KEY" => ENV.fetch("COINMARKETCAP_API_KEY")
     }
     url = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?slug=#{self.slug}"
     request = HTTParty.get(
