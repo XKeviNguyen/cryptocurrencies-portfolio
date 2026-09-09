@@ -9,13 +9,14 @@ class CoinMarketCapClient
   ENDPOINT = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest".freeze
   REQUEST_TIMEOUT_SECONDS = 5
 
-  def initialize(api_key: ENV[API_KEY_ENV], http_client: HTTParty)
+  def initialize(api_key: ENV[API_KEY_ENV], http_client: HTTParty, request_timeout_seconds: REQUEST_TIMEOUT_SECONDS)
     if api_key.nil? || api_key.strip.empty?
       raise KeyError, "#{API_KEY_ENV} is not configured"
     end
 
     @api_key = api_key
     @http_client = http_client
+    @request_timeout_seconds = request_timeout_seconds
   end
 
   def price_for(slug:)
@@ -23,26 +24,28 @@ class CoinMarketCapClient
       raise ArgumentError, "slug is required"
     end
 
-    response = @http_client.get(
-      ENDPOINT,
-      query: { slug: slug },
-      headers: {
-        "Accept" => "application/json",
-        "X-CMC_PRO_API_KEY" => @api_key
-      },
-      timeout: REQUEST_TIMEOUT_SECONDS
-    )
+    Timeout.timeout(@request_timeout_seconds) do
+      response = @http_client.get(
+        ENDPOINT,
+        query: { slug: slug },
+        headers: {
+          "Accept" => "application/json",
+          "X-CMC_PRO_API_KEY" => @api_key
+        },
+        timeout: @request_timeout_seconds
+      )
 
-    unless response.code.to_i.between?(200, 299)
-      raise Error, "CoinMarketCap returned HTTP #{response.code.to_i}"
+      unless response.code.to_i.between?(200, 299)
+        raise Error, "CoinMarketCap returned HTTP #{response.code.to_i}"
+      end
+
+      payload = JSON.parse(response.body)
+      price = extract_usd_price(payload)
+
+      raise Error, "CoinMarketCap response did not include a USD price" if price.nil?
+
+      price
     end
-
-    payload = JSON.parse(response.body)
-    price = extract_usd_price(payload)
-
-    raise Error, "CoinMarketCap response did not include a USD price" if price.nil?
-
-    price
   rescue JSON::ParserError
     raise Error, "CoinMarketCap returned malformed JSON"
   rescue Timeout::Error, SocketError, SystemCallError, EOFError, OpenSSL::SSL::SSLError => error
