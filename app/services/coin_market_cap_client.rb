@@ -1,3 +1,6 @@
+require "socket"
+require "timeout"
+
 class CoinMarketCapClient
   class Error < StandardError; end
 
