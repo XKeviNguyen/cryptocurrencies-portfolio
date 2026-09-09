@@ -108,6 +108,25 @@ class CoinMarketCapClientTest < ActiveSupport::TestCase
     refute_includes error.message, "configured-key"
   end
 
+  test "price_for enforces a deadline around the complete request" do
+    http_client = Object.new
+    http_client.define_singleton_method(:get) do |_url, _options|
+      sleep 0.05
+      Response.new(200, { data: { "1" => { quote: { USD: { price: 42_000.0 } } } } }.to_json)
+    end
+    client = CoinMarketCapClient.new(
+      api_key: "configured-key",
+      http_client: http_client,
+      request_timeout_seconds: 0.01
+    )
+
+    error = assert_raises(CoinMarketCapClient::Error) do
+      client.price_for(slug: "bitcoin")
+    end
+
+    assert_equal "CoinMarketCap request failed: Timeout::Error", error.message
+  end
+
   test "price_for normalizes connection termination and TLS failures" do
     [EOFError.new("connection closed"), OpenSSL::SSL::SSLError.new("TLS failed")].each do |transport_error|
       client = CoinMarketCapClient.new(
