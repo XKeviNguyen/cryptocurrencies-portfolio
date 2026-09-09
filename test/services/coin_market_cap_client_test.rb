@@ -80,6 +80,21 @@ class CoinMarketCapClientTest < ActiveSupport::TestCase
     assert_equal "CoinMarketCap response did not include a USD price", error.message
   end
 
+  test "price_for rejects valid JSON with a non-object top level" do
+    ["null", "[]"].each do |body|
+      client = CoinMarketCapClient.new(
+        api_key: "configured-key",
+        http_client: fake_http(Response.new(200, body))
+      )
+
+      error = assert_raises(CoinMarketCapClient::Error) do
+        client.price_for(slug: "bitcoin")
+      end
+
+      assert_equal "CoinMarketCap response did not include a USD price", error.message
+    end
+  end
+
   test "price_for translates request timeouts without leaking credentials" do
     http_client = Object.new
     http_client.define_singleton_method(:get) do |_url, _options|
