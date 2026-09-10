@@ -20,4 +20,13 @@ class CurrencyTest < ActiveSupport::TestCase
 
     assert_equal 31_250.0, currency.calculate_value(2.5)
   end
+
+  test "calculate_value reuses a supplied price without fetching another quote" do
+    currency = Currency.new(slug: "bitcoin")
+    currency.define_singleton_method(:current_price) do
+      raise "unexpected duplicate price lookup"
+    end
+
+    assert_equal 25_000.0, currency.calculate_value(2, price: 12_500.0)
+  end
 end
