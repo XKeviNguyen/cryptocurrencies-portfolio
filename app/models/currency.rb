@@ -1,6 +1,6 @@
 class Currency < ApplicationRecord
-  def calculate_value(amount)
-    current_price.to_f * amount.to_f
+  def calculate_value(amount, price: nil)
+    (price || current_price).to_f * amount.to_f
   end
 
   def current_price(client: CoinMarketCapClient.new)
