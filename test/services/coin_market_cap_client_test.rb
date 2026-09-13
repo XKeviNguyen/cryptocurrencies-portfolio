@@ -3,7 +3,7 @@ require 'test_helper'
 class CoinMarketCapClientTest < ActiveSupport::TestCase
   Response = Struct.new(:code, :body)
 
-  test "price_for returns the USD price and applies bounded request options" do
+  test "price_for returns the matching USD price and applies bounded request options" do
     captured_url = nil
     captured_options = nil
     http_client = Object.new
@@ -12,13 +12,13 @@ class CoinMarketCapClientTest < ActiveSupport::TestCase
       captured_options = options
       Response.new(
         200,
-        { data: { "1" => { quote: { USD: { price: 42_000.0 } } } } }.to_json
+        { data: { "1" => { slug: "bitcoin", quote: { USD: { price: 42_000.0 } } } } }.to_json
       )
     end
 
     client = CoinMarketCapClient.new(api_key: "configured-key", http_client: http_client)
 
-    assert_equal 42_000.0, client.price_for(slug: "bitcoin")
+    assert_equal 42_000.0, client.price_for(slug: "Bitcoin")
     assert_equal CoinMarketCapClient::ENDPOINT, captured_url
     assert_equal({ slug: "bitcoin" }, captured_options[:query])
     assert_equal "configured-key", captured_options[:headers]["X-CMC_PRO_API_KEY"]
@@ -66,8 +66,8 @@ class CoinMarketCapClientTest < ActiveSupport::TestCase
     assert_equal "CoinMarketCap returned malformed JSON", error.message
   end
 
-  test "price_for rejects successful responses without a USD price" do
-    body = { data: { "1" => { quote: { USD: {} } } } }.to_json
+  test "price_for rejects responses for a different asset" do
+    body = { data: { "1027" => { slug: "ethereum", quote: { USD: { price: 2_500.0 } } } } }.to_json
     client = CoinMarketCapClient.new(
       api_key: "configured-key",
       http_client: fake_http(Response.new(200, body))
@@ -77,11 +77,27 @@ class CoinMarketCapClientTest < ActiveSupport::TestCase
       client.price_for(slug: "bitcoin")
     end
 
-    assert_equal "CoinMarketCap response did not include a USD price", error.message
+    assert_equal "CoinMarketCap response did not include the requested asset", error.message
   end
 
-  test "price_for rejects valid JSON with a non-object top level" do
-    ["null", "[]"].each do |body|
+  test "price_for selects the requested asset instead of trusting response order" do
+    body = {
+      data: {
+        "1027" => { slug: "ethereum", quote: { USD: { price: 2_500.0 } } },
+        "1" => { slug: "bitcoin", quote: { USD: { price: 42_000.0 } } }
+      }
+    }.to_json
+    client = CoinMarketCapClient.new(
+      api_key: "configured-key",
+      http_client: fake_http(Response.new(200, body))
+    )
+
+    assert_equal 42_000.0, client.price_for(slug: "bitcoin")
+  end
+
+  test "price_for rejects invalid USD prices" do
+    [nil, "42000", 0, -1].each do |price|
+      body = { data: { "1" => { slug: "bitcoin", quote: { USD: { price: price } } } } }.to_json
       client = CoinMarketCapClient.new(
         api_key: "configured-key",
         http_client: fake_http(Response.new(200, body))
@@ -91,7 +107,30 @@ class CoinMarketCapClientTest < ActiveSupport::TestCase
         client.price_for(slug: "bitcoin")
       end
 
-      assert_equal "CoinMarketCap response did not include a USD price", error.message
+      assert_equal "CoinMarketCap response included an invalid USD price", error.message
+    end
+  end
+
+  test "price validation rejects non-finite numeric values" do
+    client = CoinMarketCapClient.new(api_key: "configured-key", http_client: Object.new)
+
+    refute client.send(:valid_price?, Float::INFINITY)
+    refute client.send(:valid_price?, -Float::INFINITY)
+    refute client.send(:valid_price?, Float::NAN)
+  end
+
+  test "price_for rejects successful responses without data" do
+    ["null", "[]", "{}"].each do |body|
+      client = CoinMarketCapClient.new(
+        api_key: "configured-key",
+        http_client: fake_http(Response.new(200, body))
+      )
+
+      error = assert_raises(CoinMarketCapClient::Error) do
+        client.price_for(slug: "bitcoin")
+      end
+
+      assert_equal "CoinMarketCap response did not include the requested asset", error.message
     end
   end
 
@@ -112,7 +151,7 @@ class CoinMarketCapClientTest < ActiveSupport::TestCase
     http_client = Object.new
     http_client.define_singleton_method(:get) do |_url, _options|
       sleep 0.05
-      Response.new(200, { data: { "1" => { quote: { USD: { price: 42_000.0 } } } } }.to_json)
+      Response.new(200, { data: { "1" => { slug: "bitcoin", quote: { USD: { price: 42_000.0 } } } } }.to_json)
     end
     client = CoinMarketCapClient.new(
       api_key: "configured-key",

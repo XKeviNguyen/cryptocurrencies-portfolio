@@ -20,14 +20,13 @@ class CoinMarketCapClient
   end
 
   def price_for(slug:)
-    if slug.nil? || slug.to_s.strip.empty?
-      raise ArgumentError, "slug is required"
-    end
+    normalized_slug = slug.to_s.strip.downcase
+    raise ArgumentError, "slug is required" if normalized_slug.empty?
 
     Timeout.timeout(@request_timeout_seconds) do
       response = @http_client.get(
         ENDPOINT,
-        query: { slug: slug },
+        query: { slug: normalized_slug },
         headers: {
           "Accept" => "application/json",
           "X-CMC_PRO_API_KEY" => @api_key
@@ -40,9 +39,12 @@ class CoinMarketCapClient
       end
 
       payload = JSON.parse(response.body)
-      price = extract_usd_price(payload)
+      quote = extract_quote(payload, requested_slug: normalized_slug)
+      price = quote.dig("quote", "USD", "price")
 
-      raise Error, "CoinMarketCap response did not include a USD price" if price.nil?
+      unless valid_price?(price)
+        raise Error, "CoinMarketCap response included an invalid USD price"
+      end
 
       price
     end
@@ -54,15 +56,21 @@ class CoinMarketCapClient
 
   private
 
-  def extract_usd_price(payload)
-    return unless payload.is_a?(Hash)
+  def extract_quote(payload, requested_slug:)
+    unless payload.is_a?(Hash) && payload["data"].is_a?(Hash)
+      raise Error, "CoinMarketCap response did not include the requested asset"
+    end
 
-    data = payload["data"]
-    return unless data.is_a?(Hash)
+    quote = payload["data"].values.find do |currency|
+      currency.is_a?(Hash) && currency["slug"].to_s.downcase == requested_slug
+    end
 
-    currency = data.values.first
-    return unless currency.is_a?(Hash)
+    raise Error, "CoinMarketCap response did not include the requested asset" unless quote
 
-    currency.dig("quote", "USD", "price")
+    quote
+  end
+
+  def valid_price?(price)
+    price.is_a?(Numeric) && price.finite? && price.positive?
   end
 end
