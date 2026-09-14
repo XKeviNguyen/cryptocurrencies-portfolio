@@ -16,7 +16,8 @@ class Search extends Component {
         <form>
           <div className = "form-group">
             <label> Search for a Currency: </label><br/>
-            <input onChange={this.props.handleChange} autoComplete="off" type="text" name="name" placeholder="Ex: Bitcoin, Etherium, XRP,..." value={this.props.name} className="field"/>
+            <input onChange={this.props.handleChange} autoComplete="off" type="text" name="name" maxLength="80" placeholder="Ex: Bitcoin, Etherium, XRP,..." value={this.props.name} className="field"/>
+            {this.props.searchError && <p role="alert" className="search-error">{this.props.searchError}</p>}
           </div>
           <div className = "currency-list">
             {searchResults}

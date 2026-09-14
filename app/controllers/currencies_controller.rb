@@ -2,12 +2,23 @@ require "bigdecimal"
 
 class CurrenciesController < ApplicationController
   DECIMAL_AMOUNT_PATTERN = /\A(?:0|[1-9]\d*)(?:\.\d+)?\z/
+  SEARCH_MAX_LENGTH = 80
+  SEARCH_RESULT_LIMIT = 25
 
   def index
   end
 
   def search
-    @currencies = Currency.where('LOWER(name) LIKE?', "%#{params[:search].downcase}%")
+    query = params[:search].to_s.strip
+    return render json: { currencies: [] } if query.empty?
+    return render_invalid_search if query.length > SEARCH_MAX_LENGTH
+
+    escaped_query = ActiveRecord::Base.sanitize_sql_like(query.downcase)
+    @currencies = Currency
+      .where('LOWER(name) LIKE ?', "%#{escaped_query}%")
+      .order(Arel.sql('LOWER(name) ASC, id ASC'))
+      .limit(SEARCH_RESULT_LIMIT)
+
     render json: { currencies: @currencies }
   end
 
@@ -51,6 +62,15 @@ class CurrenciesController < ApplicationController
       error: {
         code: "invalid_amount",
         message: "Amount must be a positive number"
+      }
+    }, status: :unprocessable_entity
+  end
+
+  def render_invalid_search
+    render json: {
+      error: {
+        code: "invalid_search",
+        message: "Search query must be at most #{SEARCH_MAX_LENGTH} characters"
       }
     }, status: :unprocessable_entity
   end

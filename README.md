@@ -12,6 +12,12 @@ export COINMARKETCAP_API_KEY="your-api-key"
 
 The application fails clearly when the key is not configured. Never commit real API credentials to the repository.
 
+## Currency Search API
+
+`POST /search` accepts a `search` string and performs a case-insensitive substring match against currency names. Blank or missing queries return an empty result set. SQL `LIKE` metacharacters such as `%` and `_` are treated as literal search text rather than user-controlled wildcards.
+
+Search queries are capped at 80 characters; longer values return HTTP `422` with `error.code = "invalid_search"`. Successful search responses are deterministically ordered by name and capped at 25 currencies to prevent accidental unbounded database responses.
+
 ## Valuation API
 
 `POST /calculate` accepts a currency `id` and a positive decimal `amount`. Fractional holdings are supported.

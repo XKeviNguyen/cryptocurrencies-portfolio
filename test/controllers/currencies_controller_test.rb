@@ -15,6 +15,49 @@ class CurrenciesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 2, payload.fetch('currencies').size
   end
 
+  test "search returns an empty result for missing or blank queries" do
+    [nil, '', '   '].each do |query|
+      post search_url, params: { search: query }
+
+      assert_response :success
+      assert_equal [], JSON.parse(response.body).fetch('currencies')
+    end
+  end
+
+  test "search treats SQL LIKE wildcards as literal input" do
+    percent_currency = Currency.create!(name: '100% Coin', slug: 'percent-coin')
+    Currency.create!(name: '100X Coin', slug: 'plain-coin')
+
+    post search_url, params: { search: '%' }
+
+    assert_response :success
+    ids = JSON.parse(response.body).fetch('currencies').map { |currency| currency.fetch('id') }
+    assert_equal [percent_currency.id], ids
+  end
+
+  test "search rejects oversized queries" do
+    post search_url, params: { search: 'a' * 81 }
+
+    assert_response :unprocessable_entity
+    payload = JSON.parse(response.body)
+    assert_equal 'invalid_search', payload.dig('error', 'code')
+  end
+
+  test "search is deterministic and bounded" do
+    30.times do |index|
+      Currency.create!(name: format('Bounded Coin %02d', 29 - index), slug: "bounded-#{index}")
+    end
+
+    post search_url, params: { search: 'bounded coin' }
+
+    assert_response :success
+    names = JSON.parse(response.body).fetch('currencies').map { |currency| currency.fetch('name') }
+    assert_equal 25, names.size
+    assert_equal names.sort_by(&:downcase), names
+    assert_equal 'Bounded Coin 00', names.first
+    assert_equal 'Bounded Coin 24', names.last
+  end
+
   test "should post calculate" do
     currency = currencies(:one)
     price_lookups = 0
