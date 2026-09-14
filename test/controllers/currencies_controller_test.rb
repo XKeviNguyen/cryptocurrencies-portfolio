@@ -50,7 +50,22 @@ class CurrenciesControllerTest < ActionDispatch::IntegrationTest
   test "calculate rejects malformed and non-positive amounts before price lookup" do
     currency = currencies(:one)
 
-    [nil, '', 'abc', 'NaN', 'Infinity', '0', '-0.01'].each do |amount|
+    invalid_amounts = [
+      nil,
+      '',
+      'abc',
+      'NaN',
+      'Infinity',
+      '0',
+      '-0.01',
+      '1_0',
+      '1_',
+      '1e3',
+      '1' + ('0' * 400),
+      '0.' + ('0' * 400) + '1'
+    ]
+
+    invalid_amounts.each do |amount|
       price_lookups = 0
 
       Currency.stub :find, currency do
