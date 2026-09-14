@@ -13,6 +13,7 @@ class PortfolioContainer extends Component {
       name: '',
       portfolio: [],
       search_results: [],
+      search_error: null,
       active_currency: null,
       amount: ''
     }
@@ -29,14 +30,21 @@ class PortfolioContainer extends Component {
     })
     .then( (data) => {
       this.setState({
-        search_results: [...data.data.currencies]
+        search_results: [...data.data.currencies],
+        search_error: null
       })
     })
-    .catch( (data) =>   {
-      debugger
-    }) 
+    .catch( (error) =>   {
+      const searchError = error.response && error.response.data && error.response.data.error
+      const message = searchError && searchError.message
+        ? searchError.message
+        : 'Unable to search currencies right now. Please try again.'
 
-    // console.log(this.state.search_results)
+      this.setState({
+        search_results: [],
+        search_error: message
+      })
+    }) 
   }
 
   handleSelect(e){
@@ -45,7 +53,8 @@ class PortfolioContainer extends Component {
     const activeCurrency = this.state.search_results.filter( item => item.id == parseInt(id))
     this.setState({
       active_currency: activeCurrency[0],
-      search_results: []
+      search_results: [],
+      search_error: null
     })
   }
     
@@ -86,7 +95,8 @@ class PortfolioContainer extends Component {
     />:
     <Search 
     handleSelect={this.handleSelect} 
-    searchResults={this.state.search_results} 
+    searchResults={this.state.search_results}
+    searchError={this.state.search_error}
     handleChange={this.handleChange} />
 
     return(
