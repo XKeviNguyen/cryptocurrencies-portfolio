@@ -1,6 +1,8 @@
 require "bigdecimal"
 
 class CurrenciesController < ApplicationController
+  DECIMAL_AMOUNT_PATTERN = /\A(?:0|[1-9]\d*)(?:\.\d+)?\z/
+
   def index
   end
 
@@ -34,10 +36,14 @@ class CurrenciesController < ApplicationController
 
   def parsed_amount
     raw_amount = params[:amount]
-    return if raw_amount.nil? || raw_amount.to_s.strip.empty?
+    return if raw_amount.nil?
 
-    amount = BigDecimal(raw_amount.to_s, exception: false)
-    amount if amount&.finite? && amount.positive?
+    normalized_amount = raw_amount.to_s.strip
+    return unless DECIMAL_AMOUNT_PATTERN.match?(normalized_amount)
+
+    amount = BigDecimal(normalized_amount, exception: false)
+    float_amount = amount&.to_f
+    amount if amount&.positive? && float_amount&.finite? && float_amount.positive?
   end
 
   def render_invalid_amount
